@@ -4,7 +4,7 @@ import { config } from '../config/env';
 
 export function verifyWebhookSecret(req: Request, res: Response, next: NextFunction): void {
   const signature = req.get('X-Hub-Signature-256');
-  const body = JSON.stringify(req.body);
+  const body = (req as any).rawBody ? (req as any).rawBody.toString('utf8') : JSON.stringify(req.body);
 
   if (!signature) {
     console.error('No signature provided');
@@ -16,8 +16,14 @@ export function verifyWebhookSecret(req: Request, res: Response, next: NextFunct
   hmac.update(body, 'utf8');
   const expectedSignature = `sha256=${hmac.digest('hex')}`;
 
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
-    console.error('Invalid signature');
+  try {
+    if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+      console.error('Invalid signature');
+      res.status(401).send('Unauthorized');
+      return;
+    }
+  } catch (error) {
+    console.error('Webhook signature verification failed:', error);
     res.status(401).send('Unauthorized');
     return;
   }

@@ -20,19 +20,14 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { owner, repo, pullNumber } = {
-      owner: event.repository.owner.login,
-      repo: event.repository.name,
-      pullNumber: event.number,
-    };
+    const owner = event.repository.owner.login;
+    const repo = event.repository.name;
+    const pullNumber = event.number;
 
     console.log(`Processing PR ${pullNumber} in ${owner}/${repo} for action: ${event.action}`);
 
-    // Fetch the diff
     const diff = await GitHubService.getPullRequestDiff(owner, repo, pullNumber);
-
-    // Process the diff and save review metrics
-    await ReviewOrchestrator.processDiff(diff, pullNumber);
+    await ReviewOrchestrator.processDiff(diff, owner, repo, pullNumber);
 
     res.status(200).send('Webhook processed successfully');
   } catch (error) {

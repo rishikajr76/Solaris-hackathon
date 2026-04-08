@@ -96,9 +96,15 @@ export class AIAgentService {
       .replace('{context}', context)
       .replace('{diff}', diff);
 
-    const result = await model.generateContent(formattedPrompt);
+    const result: any = await model.generateContent(formattedPrompt);
     const response = await result.response;
-    return response.text();
+    if (response && typeof response.text === 'function') {
+      return response.text();
+    }
+    if (response && typeof response === 'string') {
+      return response;
+    }
+    return '';
   }
 
   private static moderateResponses(
