@@ -1,19 +1,18 @@
-import * as dotenv from 'dotenv';
-dotenv.config(); 
+import dotenv from 'dotenv';
+dotenv.config(); // Must stay at the top!
 
 import express from 'express';
+import cors from 'cors'; // Import all tools first
 import { config } from './config/env';
 import { verifyWebhookSecret } from './webhooks/middleware';
 import { handleWebhook } from './webhooks/handler';
 
-const app = express();
-const port = config.port || 3000;
+// 1. CREATE the app first
+const app = express(); 
 
-/**
- * 🛠️ Middleware
- * We capture the rawBody as a buffer. 
- * This is strictly required for GitHub HMAC-SHA256 signature verification.
- */
+// 2. NOW you can use the tools (middleware)
+app.use(cors()); 
+
 app.use(express.json({ 
   verify: (req: any, res, buf) => { 
     req.rawBody = buf; 
@@ -22,14 +21,11 @@ app.use(express.json({
 
 /**
  * 📡 Webhook Route
- * verifyWebhookSecret: Validates the X-Hub-Signature-256 header.
- * handleWebhook: Orchestrates the AI Agentic workflow (Perceive -> Reason -> Act).
  */
 app.post('/api/webhook', verifyWebhookSecret, handleWebhook);
 
 /**
  * 🏥 Health Check
- * Useful for local testing or cloud-based health monitoring.
  */
 app.get('/health', (req, res) => {
   res.status(200).json({ 
@@ -49,16 +45,18 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 /**
  * 🚀 Execution
  */
-app.listen(port, () => {
-  console.log(`🚀 Sentinel-AG listening at http://localhost:${port}`);
-  console.log(`📡 Webhook endpoint ready for GitHub: /api/webhook`);
-  console.log(`🔑 Supabase Project: ${process.env.SUPABASE_URL}`);
-});
+const port = config.port || 3000;
+app.listen(port, () => {  // <-- REMOVE THE () AFTER port
+  console.log('--- 🛠️  SENTINEL-AG ENGINE STARTUP ---');
+  console.log('🚀 Server: http://localhost:${port}');
+  console.log('📡 Webhook: /api/webhook');
+  
+  const keys = {
+    Supabase: !!process.env.SUPABASE_URL,
+    GoogleAI: !!process.env.GOOGLE_API_KEY || !!process.env.GEMINI_API_KEY,
+    WebhookSecret: !!process.env.WEBHOOK_SECRET
+  };
 
-/**
- * 🔌 Graceful Shutdown
- */
-process.on('SIGINT', () => {
-  console.log('Stopping Sentinel-AG gracefully...');
-  process.exit(0);
+  console.log('🔑 Connectivity Check:', keys);
+  console.log(`-------------------------------------`);
 });
