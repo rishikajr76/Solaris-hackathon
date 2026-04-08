@@ -1,94 +1,96 @@
-import { config } from '../config/env';
-import { Pool } from 'pg';
+import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+import path from 'path';
 
-const pool = new Pool({
-  host: config.db.host,
-  port: config.db.port,
-  database: config.db.database,
-  user: config.db.user,
-  password: config.db.password,
-});
+// Force load from the current working directory
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
-export interface ReviewMetricsRecord {
-  id: number;
-  repo_id: number;
-  pr_number: number;
-  complexity_score: number;
-  status: string;
-  created_at: string;
-}
+// DEBUG: Let's see what keys actually exist
+console.log("--- ENV DEBUG ---");
+console.log("Keys found in process.env:", Object.keys(process.env).filter(k => k.includes('SUPABASE')));
+console.log("------------------");
 
-export async function initializeSchema(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS repositories (
-      id SERIAL PRIMARY KEY,
-      repo_name VARCHAR(255) NOT NULL,
-      owner VARCHAR(255) NOT NULL,
-      last_synced_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (repo_name, owner)
-    );
+const supabaseUrl = process.env.SUPABASE_URL;
+// Try every possible variation just in case
+const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-    CREATE TABLE IF NOT EXISTS reviews (
-      id SERIAL PRIMARY KEY,
-      repo_id INTEGER NOT NULL REFERENCES repositories(id),
-      pr_number INTEGER NOT NULL,
-      complexity_score FLOAT NOT NULL,
-      status VARCHAR(50) NOT NULL,
-      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS violations (
-      id SERIAL PRIMARY KEY,
-      review_id INTEGER NOT NULL REFERENCES reviews(id),
-      type VARCHAR(50) NOT NULL,
-      severity VARCHAR(50) NOT NULL,
-      line_number INTEGER,
-      message TEXT,
-      created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-}
-
-export async function upsertRepository(owner: string, repoName: string): Promise<number> {
-  const result = await pool.query(
-    `INSERT INTO repositories (repo_name, owner)
-     VALUES ($1, $2)
-     ON CONFLICT (repo_name, owner) DO UPDATE SET last_synced_at = CURRENT_TIMESTAMP
-     RETURNING id;`,
-    [repoName, owner]
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error(
+    `❌ Supabase initialization failed. 
+    URL: ${supabaseUrl ? "Defined" : "UNDEFINED"}
+    Key: ${supabaseKey ? "Defined" : "UNDEFINED"}`
   );
-  return result.rows[0].id;
 }
 
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+export interface Violation {
+  type: string;
+  severity: string;
+  line_number: number | null;
+  message: string;
+}
+
+/**
+ * Registers or updates a repository in the tracking system.
+ */
+export async function upsertRepository(owner: string, repoName: string): Promise<string> {
+  const { data, error } = await supabase
+    .from('repositories')
+    .upsert({ 
+      owner, 
+      repo_name: repoName, 
+      last_synced_at: new Date().toISOString() 
+    }, { onConflict: 'owner,repo_name' })
+    .select('id')
+    .single();
+
+  if (error) throw new Error(`Upsert Repo Error: ${error.message}`);
+  return data.id;
+}
+
+/**
+ * Saves a high-level review record.
+ */
 export async function saveReviewRecord(
-  repoId: number,
+  repoId: string,
   prNumber: number,
   complexityScore: number,
-  status: string
-): Promise<number> {
-  const result = await pool.query(
-    `INSERT INTO reviews (repo_id, pr_number, complexity_score, status)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id;`,
-    [repoId, prNumber, complexityScore, status]
-  );
-  return result.rows[0].id;
-}
-
-export async function saveViolation(
-  reviewId: number,
-  type: string,
+  status: string,
+  summary: string,
   severity: string,
-  lineNumber: number | null,
-  message: string
-): Promise<void> {
-  await pool.query(
-    `INSERT INTO violations (review_id, type, severity, line_number, message)
-     VALUES ($1, $2, $3, $4, $5);`,
-    [reviewId, type, severity, lineNumber, message]
-  );
+  report: string
+): Promise<string> {
+  const { data, error } = await supabase
+    .from('reviews')
+    .insert([{ 
+      repo_id: repoId, 
+      pr_number: prNumber, 
+      complexity_score: complexityScore, 
+      status,
+      summary,
+      severity,
+      report 
+    }])
+    .select('id')
+    .single();
+
+  if (error) throw new Error(`Save Review Error: ${error.message}`);
+  return data.id;
 }
 
-export async function closeMetricsPool(): Promise<void> {
-  await pool.end();
+/**
+ * Saves specific violations linked to a review.
+ */
+export async function saveViolations(reviewId: string, violations: Violation[]): Promise<void> {
+  const payload = violations.map(v => ({
+    review_id: reviewId,
+    type: v.type,
+    severity: v.severity,
+    line_number: v.line_number,
+    message: v.message
+  }));
+
+  const { error } = await supabase.from('violations').insert(payload);
+  if (error) throw new Error(`Save Violations Error: ${error.message}`);
 }

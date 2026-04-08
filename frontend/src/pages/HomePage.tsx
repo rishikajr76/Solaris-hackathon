@@ -1,66 +1,66 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Shield } from "lucide-react";
+import { Shield, Zap, Activity } from "lucide-react"; // Added Zap for complexity
 import { HeroTyping } from "../components/HeroTyping";
 import { MagneticButton } from "../components/MagneticButton";
 import { FloatingParticles } from "../components/FloatingParticles";
 import { supabase } from "../lib/supabaseClient";
 
-// ✅ Type for violations
-type Violation = {
+// ✅ Type aligned with Backend ReviewData
+type Review = {
   id: string;
-  title: string;
-  description: string;
-  severity: string;
+  title?: string;
+  description?: string;
+  summary: string;
+  severity: 'Low' | 'Medium' | 'High';
+  complexity_score: number;
   created_at?: string;
 };
 
 export function HomePage() {
   const navigate = useNavigate();
-
-  const [violations, setViolations] = useState<Violation[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // 🔥 Fetch violations
-    const fetchViolations = async () => {
+    const fetchReviews = async () => {
       setLoading(true);
-
+      // 🔥 Fetching from 'reviews' table to match databaseService.ts
       const { data, error } = await supabase
-        .from("violations")
+        .from("reviews")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(6);
 
       if (error) {
-        console.error("Error fetching violations:", error);
+        console.error("Error fetching reviews:", error);
       } else {
-        setViolations(data || []);
+        setReviews(data || []);
       }
-
       setLoading(false);
     };
 
-    fetchViolations();
+    fetchReviews();
 
-    // 🔥 Realtime updates
+    // 🔥 Realtime updates from the Backend engine
     const channel = supabase
-      .channel("violations_changes")
+      .channel("realtime_reviews")
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
-          table: "violations",
+          table: "reviews",
         },
         (payload) => {
-          setViolations((prev) => [payload.new as Violation, ...prev]);
+          setReviews((prev) => [payload.new as Review, ...prev].slice(0, 6));
         }
       )
       .subscribe();
 
     return () => {
-      channel.unsubscribe(); // ✅ FIXED cleanup
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -68,7 +68,7 @@ export function HomePage() {
     <div className="min-h-screen bg-slate-900 overflow-hidden flex flex-col justify-center">
       <FloatingParticles />
 
-      {/* 🔥 Navbar */}
+      {/* 🛡️ Navbar */}
       <nav className="fixed top-0 w-full glass-dark border-b z-40">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <div className="text-2xl font-bold text-gradient">Sentinel-AG</div>
@@ -83,8 +83,8 @@ export function HomePage() {
         </div>
       </nav>
 
-      {/* 🔥 Hero */}
-      <section className="max-w-7xl mx-auto px-8 py-16">
+      {/* 🚀 Hero Section */}
+      <section className="max-w-7xl mx-auto px-8 py-24 mt-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -100,93 +100,93 @@ export function HomePage() {
 
           <p className="text-xl text-slate-400 mb-8 max-w-2xl mx-auto">
             AI-powered code governance with automated review insights,
-            security checks, and performance analysis.
+            security checks, and cognitive complexity analysis.
           </p>
 
           <div className="flex gap-4 justify-center">
             <MagneticButton onClick={() => navigate("/auth")}>
               Launch App
             </MagneticButton>
-
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              className="btn-secondary"
-            >
-              Learn More
-            </motion.button>
           </div>
         </motion.div>
 
-        {/* 🔥 Loading */}
-        {loading && (
-          <p className="text-center text-slate-400">
-            Loading violations...
-          </p>
-        )}
+        {/* 📊 Live Review Feed */}
+        <div className="mt-20">
+          <div className="flex items-center gap-2 mb-8 justify-center">
+            <Activity className="text-cyan-400 w-5 h-5 animate-pulse" />
+            <h2 className="text-2xl font-bold text-white uppercase tracking-widest">Live Engine Feed</h2>
+          </div>
 
-        {/* 🔥 Violations Grid */}
-        {!loading && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.8 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-20"
-          >
-            {violations.map((violation, index) => {
-              const isHigh = violation.severity === "High";
+          {loading ? (
+            <div className="flex justify-center py-10">
+              <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              {reviews.map((review, index) => {
+                // ✅ Logic check: Red if High severity, Cyan otherwise
+                const isHigh = review.severity === "High";
 
-              return (
-                <motion.div
-                  key={violation.id || index}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.1 }}
-                  whileHover={{ scale: 1.05 }}
-                  className={`p-6 rounded-xl backdrop-blur-xl border 
-                  ${
-                    isHigh
-                      ? "border-red-500/40"
-                      : "border-cyan-400/40"
-                  }
-                  bg-white/5 hover:shadow-xl transition-all`}
-                >
-                  <div
-                    className={`mb-4 ${
-                      isHigh ? "text-red-400" : "text-cyan-400"
+                return (
+                  <motion.div
+                    key={review.id || index}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.1 }}
+                    whileHover={{ y: -5 }}
+                    className={`p-6 rounded-2xl backdrop-blur-xl border transition-all duration-300 ${
+                      isHigh
+                        ? "border-red-500/40 bg-red-500/5 shadow-[0_0_20px_rgba(239,68,68,0.1)]"
+                        : "border-cyan-400/40 bg-white/5 shadow-[0_0_20px_rgba(34,211,238,0.05)]"
                     }`}
                   >
-                    <Shield className="w-8 h-8" />
-                  </div>
+                    <div className="flex justify-between items-start mb-4">
+                      <div className={isHigh ? "text-red-400" : "text-cyan-400"}>
+                        <Shield className="w-8 h-8" />
+                      </div>
+                      <div className="text-right">
+                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${
+                          isHigh ? "bg-red-500/20 text-red-400" : "bg-cyan-500/20 text-cyan-400"
+                        }`}>
+                          {review.severity}
+                        </span>
+                      </div>
+                    </div>
 
-                  <h3 className="text-lg font-semibold mb-2">
-                    {violation.title || "Code Violation"}
-                  </h3>
+                    <h3 className="text-lg font-semibold mb-2 text-white line-clamp-1">
+                      {review.title || "Automated Review"}
+                    </h3>
 
-                  <p className="text-sm text-slate-400">
-                    {violation.description || "Violation detected"}
-                  </p>
+                    <p className="text-sm text-slate-400 mb-4 line-clamp-2">
+                      {review.summary}
+                    </p>
 
-                  <p className="mt-2 text-xs text-slate-500">
-                    Severity:{" "}
-                    <span
-                      className={
-                        isHigh ? "text-red-400" : "text-cyan-400"
-                      }
-                    >
-                      {violation.severity}
-                    </span>
-                  </p>
-                </motion.div>
-              );
-            })}
-          </motion.div>
-        )}
+                    <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-4 h-4 text-yellow-400" />
+                        <span className="text-xs text-slate-300">
+                          Load: {review.complexity_score}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-slate-500 uppercase tracking-tighter">
+                        {review.created_at ? new Date(review.created_at).toLocaleTimeString() : 'Just now'}
+                      </span>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </motion.div>
+          )}
+        </div>
       </section>
 
-      {/* 🔥 Footer */}
-      <footer className="border-t border-white/10 mt-auto py-10">
-        <div className="text-center text-slate-400 text-sm">
-          © 2026 Sentinel-AG. AI-powered code governance.
+      <footer className="border-t border-white/10 mt-auto py-8">
+        <div className="text-center text-slate-500 text-xs">
+          © 2026 Sentinel-AG • Real-time Affective Computing & Code Governance
         </div>
       </footer>
     </div>
