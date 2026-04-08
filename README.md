@@ -42,49 +42,35 @@ Sentinel-AG operates on a **Perceive-Reason-Act (PRA)** loop:
 | Database   | Supabase (PostgreSQL) with Realtime |
 
 ---
-
-## 📂 Project Structure
-
-
+```text
 solaris-hackathon/
 ├── backend/
-│ ├── src/
-│ │ ├── agents/ # Multi-agent orchestration logic
-│ │ ├── analysis/ # Security, Performance, Architecture analysis
-│ │ ├── config/ # Environment & configuration files
-│ │ ├── rag/ # Repository Retrieval-Augmented Generation logic
-│ │ ├── services/ # Supabase, GitHub, and other services
-│ │ ├── types/ # TypeScript type definitions
-│ │ ├── utils/ # Helper utilities
-│ │ ├── webhooks/ # GitHub webhook handlers
-│ │ └── index.ts # Backend entry point
-│ ├── .env.example
-│ ├── package.json
-│ ├── package-lock.json
-│ └── tsconfig.json
+│   ├── src/
+│   │   ├── agents/      # Multi-agent orchestration logic
+│   │   ├── analysis/    # Security, Performance, Architecture analysis
+│   │   ├── config/      # Environment & configuration files
+│   │   ├── rag/         # Repository RAG logic (Gemini)
+│   │   ├── services/    # Supabase & GitHub SDK services
+│   │   ├── types/       # TypeScript definitions
+│   │   ├── utils/       # Helper utilities
+│   │   ├── webhooks/    # GitHub webhook handlers
+│   │   └── index.ts     # Backend entry point
+│   ├── .env.example
+│   └── package.json
 ├── frontend/
-│ ├── src/
-│ │ ├── components/ # React UI components
-│ │ ├── hooks/ # Custom React hooks
-│ │ ├── lib/ # Supabase client & libraries
-│ │ ├── pages/ # Page components
-│ │ ├── styles/ # Tailwind CSS and custom styles
-│ │ ├── App.tsx # Main React component
-│ │ ├── main.tsx # React entry point
-│ │ └── vite-env.d.ts # Vite environment typings
-│ ├── .env.example
-│ ├── index.html
-│ ├── package.json
-│ ├── package-lock.json
-│ ├── postcss.config.js
-│ ├── tailwind.config.js
-│ ├── tsconfig.json
-│ ├── tsconfig.node.json
-│ └── vite.config.ts
+│   ├── src/
+│   │   ├── components/  # React UI components (Bento Grid)
+│   │   ├── hooks/       # useSentinelData & custom hooks
+│   │   ├── lib/         # Supabase client configuration
+│   │   ├── pages/       # Dashboard & Landing pages
+│   │   ├── styles/      # Tailwind & Framer Motion styles
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── index.html
+│   └── tailwind.config.js
 ├── .gitignore
 ├── LICENSE
-└── package.json
-
+└── README.md
 
 ---
 
