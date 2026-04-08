@@ -1,5 +1,5 @@
 # 🛡️ Sentinel-AG  
-*Autonomous Agentic Code Governance & Review Framework – "Governing code at the speed of thought."*
+* Autonomous Agentic Code Governance & Review Framework – "Governing code at the speed of thought."*
 
 Sentinel-AG is a next-generation AI-driven code governance platform that acts as an autonomous **Digital Lead Developer**. Sitting between developer contributions and the production branch, it uses a **Multi-Agent Orchestration** model to ensure every Pull Request meets elite standards of **security, performance, and architecture**.
 
