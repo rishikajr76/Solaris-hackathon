@@ -8,15 +8,15 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     const event = req.body as PullRequestEvent;
     const eventType = req.get('X-GitHub-Event');
 
+    // 1. Structural Filter
     if (eventType !== 'pull_request') {
-      console.log(`Ignoring event type: ${eventType}`);
-      res.status(200).send('Event ignored');
+      res.status(200).send('Ignoring non-PR event');
       return;
     }
 
-    if (event.action !== 'opened' && event.action !== 'synchronize') {
-      console.log(`Ignoring PR action: ${event.action}`);
-      res.status(200).send('Action ignored');
+    // 2. Action Filter (Only process new code or updates)
+    if (!['opened', 'synchronize', 'reopened'].includes(event.action)) {
+      res.status(200).send(`Action ${event.action} ignored`);
       return;
     }
 
@@ -24,14 +24,28 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     const repo = event.repository.name;
     const pullNumber = event.number;
 
-    console.log(`Processing PR ${pullNumber} in ${owner}/${repo} for action: ${event.action}`);
+    console.log(`🚀 Sentinel-AG: Triggering analysis for ${owner}/${repo}#${pullNumber}`);
 
-    const diff = await GitHubService.getPullRequestDiff(owner, repo, pullNumber);
-    await ReviewOrchestrator.processDiff(diff, owner, repo, pullNumber);
+    // 3. The "Hackathon Speed" Trick: 
+    // We send 202 (Accepted) immediately so GitHub is happy.
+    // The heavy AI work happens in the background.
+    res.status(202).send('Sentinel-AG has started the review process.');
 
-    res.status(200).send('Webhook processed successfully');
+    // Fire-and-forget background execution
+    (async () => {
+      try {
+        const diff = await GitHubService.getPullRequestDiff(owner, repo, pullNumber);
+        await ReviewOrchestrator.processDiff(diff, owner, repo, pullNumber);
+        console.log(`✅ Sentinel-AG: Successfully completed review for PR #${pullNumber}`);
+      } catch (innerError) {
+        console.error(`❌ Sentinel-AG: Background process failed for PR #${pullNumber}:`, innerError);
+      }
+    })();
+
   } catch (error) {
-    console.error('Error handling webhook:', error);
-    res.status(500).send('Internal server error');
+    console.error('💥 Webhook Error:', error);
+    if (!res.headersSent) {
+      res.status(500).send('Internal server error');
+    }
   }
 }

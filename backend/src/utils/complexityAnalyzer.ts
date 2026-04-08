@@ -1,5 +1,5 @@
 import Parser from 'tree-sitter';
-import JavaScript from 'tree-sitter-javascript';
+const JavaScript = require('tree-sitter-javascript');
 
 const parser = new Parser();
 parser.setLanguage(JavaScript);
@@ -16,25 +16,22 @@ const complexityNodeTypes = new Set([
 ]);
 
 function normalizeScore(score: number): number {
-  const scaled = Math.round(score);
-  return Math.min(10, Math.max(1, scaled));
+  return Math.min(10, Math.max(1, Math.round(score)));
 }
 
-function extractCodeFromDiff(diff: string): string {
-  return diff
-    .split('\n')
-    .filter((line) => {
-      if (line.startsWith('diff ') || line.startsWith('index ') || line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('@@')) {
-        return false;
-      }
-      return true;
-    })
-    .map((line) => {
-      if (line.startsWith('+') || line.startsWith('-')) {
-        return line.slice(1);
-      }
-      return line;
-    })
+/**
+ * UPDATED: Only extracts ADDED (+) lines.
+ * Analyzing removed (-) lines gives a false complexity reading of the past state.
+ */
+function extractNewCode(diff: string): string {
+  const lines = diff.split('\n');
+  const isActualDiff = lines.some(l => l.startsWith('@@'));
+
+  if (!isActualDiff) return diff; // Handle raw code input
+
+  return lines
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+    .map((line) => line.slice(1))
     .join('\n');
 }
 
@@ -43,19 +40,16 @@ function countNodeComplexity(node: Parser.SyntaxNode, nesting: number): number {
 
   switch (node.type) {
     case 'if_statement':
-      score += 1 + nesting;
-      break;
     case 'for_statement':
     case 'for_in_statement':
     case 'for_of_statement':
     case 'while_statement':
     case 'do_statement':
-      score += 1 + nesting;
-      break;
     case 'switch_statement':
+      // The core of Cognitive Load: Nesting increases the weight exponentially
       score += 1 + nesting;
       break;
-    case 'conditional_expression':
+    case 'conditional_expression': // Ternaries
       score += 1;
       break;
     case 'binary_expression': {
@@ -80,14 +74,17 @@ function countNodeComplexity(node: Parser.SyntaxNode, nesting: number): number {
 }
 
 export function calculateCognitiveComplexity(codeOrDiff: string): number {
-  const code = extractCodeFromDiff(codeOrDiff);
+  const code = extractNewCode(codeOrDiff);
+
+  if (!code.trim()) return 1;
 
   try {
     const tree = parser.parse(code);
+    // Weighted base: complexity / 2 to keep the 1-10 scale realistic
     const rawScore = countNodeComplexity(tree.rootNode, 0);
-    return normalizeScore(rawScore || 1);
+    return normalizeScore(rawScore / 2 || 1);
   } catch (error) {
-    console.error('Failed to parse code for complexity analysis:', error);
+    console.error('AST Parsing Error:', error);
     return 1;
   }
 }

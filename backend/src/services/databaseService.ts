@@ -1,46 +1,54 @@
-import { Pool } from 'pg';
+import { createClient } from '@supabase/supabase-js';
 import { config } from '../config/env';
 
-const pool = new Pool({
-  host: config.db.host,
-  port: config.db.port,
-  database: config.db.database,
-  user: config.db.user,
-  password: config.db.password,
-});
+// Safety check to prevent the 'undefined' error on the createClient call
+const supabaseUrl = config.supabase.url;
+const supabaseKey = config.supabase.serviceRoleKey;
 
-let schemaInitialized = false;
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error("Missing Supabase URL or Service Role Key in .env");
+}
 
-async function ensureSchema(): Promise<void> {
-  if (schemaInitialized) {
-    return;
+// Initialize Supabase Client
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+export interface ReviewData {
+  prId: number;
+  complexityScore: number;
+  report: string;
+  summary: string;
+  severity: 'Low' | 'Medium' | 'High';
+}
+
+/**
+ * Saves the full review results to Supabase.
+ */
+export async function saveReviewData(data: ReviewData): Promise<void> {
+  const { error } = await supabase
+    .from('reviews')
+    .insert([
+      {
+        pr_id: data.prId,
+        complexity_score: data.complexityScore,
+        report: data.report,
+        summary: data.summary,
+        severity: data.severity,
+        created_at: new Date().toISOString()
+      }
+    ]);
+
+  if (error) {
+    console.error('❌ Supabase Insertion Error:', error.message);
+    throw new Error('Failed to save review data to database');
   }
-
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS reviews (
-      id SERIAL PRIMARY KEY,
-      pr_id INTEGER NOT NULL,
-      complexity_score FLOAT NOT NULL,
-      timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_reviews_pr_id ON reviews(pr_id);
-  `);
-
-  schemaInitialized = true;
 }
 
-export async function saveReviewComplexity(prId: number, complexityScore: number): Promise<void> {
-  await ensureSchema();
-
-  await pool.query(
-    `INSERT INTO reviews (pr_id, complexity_score, timestamp) VALUES ($1, $2, NOW())`,
-    [prId, complexityScore]
-  );
-}
-
-export async function closeDatabase(): Promise<void> {
-  await pool.end();
+export async function getLatestReviews(limit = 10) {
+  const { data, error } = await supabase
+    .from('reviews')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+    
+  return data;
 }

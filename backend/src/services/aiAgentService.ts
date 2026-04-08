@@ -2,131 +2,52 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config/env';
 
 const genAI = new GoogleGenerativeAI(config.googleApiKey!);
-const model = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+// Use the faster flash model for summarization to save costs/time
+const proModel = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
+const flashModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-const securityPrompt = `
-You are a Security Auditor AI agent. Analyze the provided code diff for security vulnerabilities.
-
-Focus on:
-- SQL injection vulnerabilities
-- Hardcoded secrets (API keys, passwords, tokens)
-- Data sanitization issues
-- Authentication and authorization flaws
-- Input validation problems
-
-Context: {context}
-
-Code Diff:
-{diff}
-
-Provide your analysis in a structured format. For each issue found, suggest a fix using GitHub's suggestion format:
-\`\`\`suggestion
-fixed code here
-\`\`\`
-
-If no issues, state "No security issues found."
-`;
-
-const performancePrompt = `
-You are a Performance Auditor AI agent. Analyze the provided code diff for performance issues.
-
-Focus on:
-- O(n^2) or higher complexity loops
-- Memory leaks (unclosed resources, large data structures)
-- Inefficient API calls (N+1 queries, unnecessary requests)
-- Blocking operations in async code
-- Resource-intensive operations
-
-Context: {context}
-
-Code Diff:
-{diff}
-
-Provide your analysis in a structured format. For each issue found, suggest a fix using GitHub's suggestion format:
-\`\`\`suggestion
-fixed code here
-\`\`\`
-
-If no issues, state "No performance issues found."
-`;
-
-const architectPrompt = `
-You are an Architecture Guardian AI agent. Analyze the provided code diff for architectural and code quality issues.
-
-Focus on:
-- Violation of project-specific tribal knowledge and patterns (from context)
-- DRY (Don't Repeat Yourself) principle violations
-- Code maintainability and readability
-- Proper separation of concerns
-- Adherence to established design patterns
-
-Context: {context}
-
-Code Diff:
-{diff}
-
-Provide your analysis in a structured format. For each issue found, suggest a fix using GitHub's suggestion format:
-\`\`\`suggestion
-fixed code here
-\`\`\`
-
-If no issues, state "No architectural issues found."
-`;
+const prompts: Record<string, string> = {
+  security: `You are a Security Auditor. Focus: SQLi, Secrets, XSS, and Auth. Context: {context}. Diff: {diff}`,
+  performance: `You are a Performance Expert. Focus: Complexity, Memory, and Async bottlenecks. Context: {context}. Diff: {diff}`,
+  architecture: `You are a Lead Architect. Focus: DRY, Design Patterns, and Project Rules. Context: {context}. Diff: {diff}`
+};
 
 export class AIAgentService {
-  static async reviewCode(diff: string, context: string): Promise<string> {
-    try {
-      // Run all agents in parallel
-      const [securityResponse, performanceResponse, architectResponse] = await Promise.all([
-        this.runAgent(securityPrompt, diff, context),
-        this.runAgent(performancePrompt, diff, context),
-        this.runAgent(architectPrompt, diff, context),
-      ]);
-
-      // Aggregate responses
-      return this.moderateResponses(securityResponse, performanceResponse, architectResponse);
-    } catch (error) {
-      console.error('Error in AI review:', error);
-      throw new Error('Failed to perform AI code review');
-    }
-  }
-
-  private static async runAgent(prompt: string, diff: string, context: string): Promise<string> {
-    const formattedPrompt = prompt
+  /**
+   * Called by AgentBoard to run a specific specialized agent
+   */
+  static async reviewCode(diff: string, context: string, role: 'security' | 'performance' | 'architecture'): Promise<string> {
+    const promptTemplate = prompts[role];
+    const fullPrompt = promptTemplate
       .replace('{context}', context)
       .replace('{diff}', diff);
 
-    const result: any = await model.generateContent(formattedPrompt);
-    const response = await result.response;
-    if (response && typeof response.text === 'function') {
-      return response.text();
-    }
-    if (response && typeof response === 'string') {
-      return response;
-    }
-    return '';
+    const result = await proModel.generateContent(fullPrompt);
+    return result.response.text();
   }
 
-  private static moderateResponses(
-    security: string,
-    performance: string,
-    architect: string
-  ): string {
-    const report = `# AI Code Review Report
+  /**
+   * The "Intelligence Layer" that interprets all reports and complexity
+   */
+  static async summarizeFindings(fullReport: string, complexityScore: number): Promise<{ text: string, severity: string }> {
+    const summaryPrompt = `
+      You are the Sentinel-AG Orchestrator. 
+      Analyze this code review report and a Cognitive Load score of ${complexityScore}/10.
+      
+      Tasks:
+      1. Provide a 2-sentence executive summary.
+      2. Determine Severity: 'High' (if security issues exist or complexity > 8), 'Medium', or 'Low'.
+      3. Return strictly in JSON format: {"text": "...", "severity": "..."}
 
-## Security Analysis
-${security}
+      Report:
+      ${fullReport}
+    `;
 
-## Performance Analysis
-${performance}
-
-## Architecture Analysis
-${architect}
-
----
-*This report was generated by Sentinel-AG's multi-agent AI review system.*
-`;
-
-    return report;
+    const result = await flashModel.generateContent(summaryPrompt);
+    const text = result.response.text();
+    
+    // Clean JSON from Markdown blocks if present
+    const cleanJson = text.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleanJson);
   }
 }
