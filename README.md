@@ -7,7 +7,7 @@ Sentinel-AG is a next-generation AI-driven code governance platform that acts as
 
 ## 🚀 Core Features
 
-- **Multi-Agent PR Analysis**  
+- ** Multi-Agent PR Analysis**  
   Specialized AI agents (Security, Performance, Architecture) perform deep reasoning on incoming code changes using Gemini 1.5 Pro.
 
 - **One-Click Automated Remediation**  
