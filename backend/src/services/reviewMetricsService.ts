@@ -1,26 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
-import * as dotenv from 'dotenv';
-import path from 'path';
+import { config } from '../config/env';
 
-// Force load from the current working directory
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
-
-// DEBUG: Let's see what keys actually exist
-console.log("--- ENV DEBUG ---");
-console.log("Keys found in process.env:", Object.keys(process.env).filter(k => k.includes('SUPABASE')));
-console.log("------------------");
-
-const supabaseUrl = process.env.SUPABASE_URL;
-// Try every possible variation just in case
-const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !supabaseKey) {
-  throw new Error(
-    `❌ Supabase initialization failed. 
-    URL: ${supabaseUrl ? "Defined" : "UNDEFINED"}
-    Key: ${supabaseKey ? "Defined" : "UNDEFINED"}`
-  );
-}
+const supabaseUrl = config.supabase.url as string;
+const supabaseKey =
+  config.supabase.serviceRoleKey || (config.supabase.anonKey as string);
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -29,6 +12,26 @@ export interface Violation {
   severity: string;
   line_number: number | null;
   message: string;
+}
+
+export interface RepositoryRow {
+  id: string;
+  owner: string;
+  repo_name: string;
+  last_synced_at: string | null;
+}
+
+/**
+ * Lists all tracked repositories (newest activity first).
+ */
+export async function listRepositories(): Promise<RepositoryRow[]> {
+  const { data, error } = await supabase
+    .from('repositories')
+    .select('id, owner, repo_name, last_synced_at')
+    .order('last_synced_at', { ascending: false });
+
+  if (error) throw new Error(`List repositories failed: ${error.message}`);
+  return (data as RepositoryRow[]) ?? [];
 }
 
 /**

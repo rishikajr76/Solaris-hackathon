@@ -1,10 +1,27 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import type { GenerativeModel } from '@google/generative-ai';
 import { config } from '../config/env';
 
-const genAI = new GoogleGenerativeAI(config.googleApiKey!);
-// Use the faster flash model for summarization to save costs/time
-const proModel = genAI.getGenerativeModel({ model: 'gemini-1.5-pro' });
-const flashModel = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+let genAI: GoogleGenerativeAI | null = null;
+
+function getGenAI(): GoogleGenerativeAI {
+  const key = config.googleApiKey?.trim();
+  if (!key) {
+    throw new Error(
+      'GOOGLE_API_KEY is not set in backend/.env. Required for AI review (webhook pipeline).'
+    );
+  }
+  if (!genAI) genAI = new GoogleGenerativeAI(key);
+  return genAI;
+}
+
+function getProModel(): GenerativeModel {
+  return getGenAI().getGenerativeModel({ model: 'gemini-1.5-pro' });
+}
+
+function getFlashModel(): GenerativeModel {
+  return getGenAI().getGenerativeModel({ model: 'gemini-1.5-flash' });
+}
 
 const prompts: Record<string, string> = {
   security: `You are a Security Auditor. Focus: SQLi, Secrets, XSS, and Auth. Context: {context}. Diff: {diff}`,
@@ -22,7 +39,7 @@ export class AIAgentService {
       .replace('{context}', context)
       .replace('{diff}', diff);
 
-    const result = await proModel.generateContent(fullPrompt);
+    const result = await getProModel().generateContent(fullPrompt);
     return result.response.text();
   }
 
@@ -43,7 +60,7 @@ export class AIAgentService {
       ${fullReport}
     `;
 
-    const result = await flashModel.generateContent(summaryPrompt);
+    const result = await getFlashModel().generateContent(summaryPrompt);
     const text = result.response.text();
     
     // Clean JSON from Markdown blocks if present

@@ -6,6 +6,7 @@ import cors from 'cors'; // Import all tools first
 import { config } from './config/env';
 import { verifyWebhookSecret } from './webhooks/middleware';
 import { handleWebhook } from './webhooks/handler';
+import { getRepositories, postRepository } from './routes/repositories';
 
 // 1. CREATE the app first
 const app = express(); 
@@ -23,6 +24,12 @@ app.use(express.json({
  * 📡 Webhook Route
  */
 app.post('/api/webhook', verifyWebhookSecret, handleWebhook);
+
+/**
+ * 📂 Tracked repositories (Supabase via backend)
+ */
+app.get('/api/repositories', getRepositories);
+app.post('/api/repositories', postRepository);
 
 /**
  * 🏥 Health Check
@@ -48,8 +55,9 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 const port = config.port || 3000;
 app.listen(port, () => {  // <-- REMOVE THE () AFTER port
   console.log('--- 🛠️  SENTINEL-AG ENGINE STARTUP ---');
-  console.log('🚀 Server: http://localhost:${port}');
-  console.log('📡 Webhook: /api/webhook');
+  console.log(`🚀 Server: http://localhost:${port}`);
+  console.log('📡 Webhook: POST /api/webhook');
+  console.log('📂 Repositories: GET/POST /api/repositories');
   
   const keys = {
     Supabase: !!process.env.SUPABASE_URL,

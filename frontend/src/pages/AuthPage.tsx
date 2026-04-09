@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { FloatingParticles } from "../components/FloatingParticles";
 import { useEffect, useState } from "react";
+import { isSupabaseConfigured } from "../lib/supabaseClient";
 
 export function AuthPage() {
   const navigate = useNavigate();
-  const { user, loading, error, signIn, signUp } = useAuth();
+  const { user, loading, authBusy, error, notice, signIn, signUp } = useAuth();
 
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
@@ -19,6 +20,7 @@ export function AuthPage() {
   }, [user, loading, navigate]);
 
   const handleSubmit = async () => {
+    if (!isSupabaseConfigured) return;
     if (!email || !password) return;
 
     if (isLogin) {
@@ -60,10 +62,25 @@ export function AuthPage() {
           transition={{ delay: 0.3 }}
           className="space-y-4"
         >
+          {!isSupabaseConfigured && (
+            <div className="p-3 bg-amber-500/15 border border-amber-500/40 rounded-lg text-amber-100 text-sm">
+              Add <code className="text-cyan-300">VITE_SUPABASE_URL</code> and{" "}
+              <code className="text-cyan-300">VITE_SUPABASE_ANON_KEY</code> to{" "}
+              <code className="text-cyan-300">frontend/.env</code> (same project as the
+              backend). Restart the dev server after saving.
+            </div>
+          )}
+
           {/* Error */}
           {error && (
             <div className="p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
               {error}
+            </div>
+          )}
+
+          {notice && !error && (
+            <div className="p-3 bg-cyan-500/15 border border-cyan-500/35 rounded-lg text-cyan-100 text-sm">
+              {notice}
             </div>
           )}
 
@@ -87,13 +104,14 @@ export function AuthPage() {
 
           {/* Button */}
           <motion.button
+            type="button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={handleSubmit}
-            disabled={loading}
-            className="w-full btn-primary"
+            disabled={loading || authBusy || !isSupabaseConfigured}
+            className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading
+            {loading || authBusy
               ? "Processing..."
               : isLogin
               ? "Sign In"
@@ -104,7 +122,10 @@ export function AuthPage() {
           <p className="text-center text-sm text-slate-400">
             {isLogin ? "Don't have an account?" : "Already have an account?"}
             <button
-              onClick={() => setIsLogin(!isLogin)}
+              type="button"
+              onClick={() => {
+                setIsLogin(!isLogin);
+              }}
               className="ml-2 text-cyan-400 hover:underline"
             >
               {isLogin ? "Sign Up" : "Sign In"}
