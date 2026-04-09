@@ -2,30 +2,34 @@ import { motion } from 'framer-motion'
 import { useEffect, useState } from 'react'
 import { Sidebar } from '../components/Sidebar'
 import { ProjectTable } from '../components/ProjectTable'
-import { supabase, type Repository } from '../lib/supabaseClient'
+import { supabase, isSupabaseConfigured, type Repository } from '../lib/supabaseClient'
+import { fetchRepositoriesFromApi } from '../lib/api'
+import { AddRepositoryModal } from '../components/AddRepositoryModal'
 import { Plus, RefreshCw } from 'lucide-react'
 
 export function ProjectListPage() {
   const [repositories, setRepositories] = useState<Repository[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   useEffect(() => {
-    fetchRepositories()
+    void fetchRepositories()
 
-    // 🔥 REAL-TIME SUBSCRIPTION (HUGE UPGRADE)
+    if (!isSupabaseConfigured) {
+      return
+    }
+
     const channel = supabase
       .channel('repositories_changes')
       .on(
         'postgres_changes',
         {
-          event: '*', // INSERT, UPDATE, DELETE
+          event: '*',
           schema: 'public',
           table: 'repositories',
         },
         (payload) => {
-          console.log('Realtime update:', payload)
-
           if (payload.eventType === 'INSERT') {
             setRepositories((prev) => [
               payload.new as Repository,
@@ -51,7 +55,7 @@ export function ProjectListPage() {
       .subscribe()
 
     return () => {
-      channel.unsubscribe() // ✅ proper cleanup
+      void supabase.removeChannel(channel)
     }
   }, [])
 
@@ -60,14 +64,8 @@ export function ProjectListPage() {
       setLoading(true)
       setError(null)
 
-      const { data, error: fetchError } = await supabase
-        .from('repositories')
-        .select('*')
-        .order('last_synced_at', { ascending: false })
-
-      if (fetchError) throw fetchError
-
-      setRepositories(data || [])
+      const data = await fetchRepositoriesFromApi()
+      setRepositories(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch repositories')
     } finally {
@@ -75,8 +73,20 @@ export function ProjectListPage() {
     }
   }
 
+  const handleAdded = (repo: Repository) => {
+    setRepositories((prev) => {
+      const without = prev.filter((r) => r.id !== repo.id)
+      return [repo, ...without]
+    })
+  }
+
   return (
     <div className="flex h-screen bg-slate-900">
+      <AddRepositoryModal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        onAdded={handleAdded}
+      />
       <Sidebar />
 
       {/* Main Content */}
@@ -119,7 +129,9 @@ export function ProjectListPage() {
 
               {/* Add Repo */}
               <motion.button
+                type="button"
                 whileHover={{ scale: 1.05 }}
+                onClick={() => setAddOpen(true)}
                 className="btn-primary flex items-center gap-2"
               >
                 <Plus size={16} />
@@ -171,7 +183,14 @@ export function ProjectListPage() {
 
           {/* Table */}
           {!loading && repositories.length > 0 && (
-            <ProjectTable repositories={repositories} />
+            <ProjectTable
+              repositories={repositories}
+              onRepositoryUpdated={(updated) =>
+                setRepositories((prev) =>
+                  prev.map((r) => (r.id === updated.id ? updated : r))
+                )
+              }
+            />
           )}
 
           {/* Empty State */}
@@ -190,7 +209,9 @@ export function ProjectListPage() {
               </p>
 
               <motion.button
+                type="button"
                 whileHover={{ scale: 1.05 }}
+                onClick={() => setAddOpen(true)}
                 className="btn-primary"
               >
                 Add Your First Repository

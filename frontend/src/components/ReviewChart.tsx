@@ -1,3 +1,4 @@
+import type { FC } from "react";
 import { motion } from "framer-motion";
 import {
   LineChart,
@@ -22,7 +23,7 @@ const data = [
 ];
 
 // 🔥 Better Tooltip
-const CustomTooltip: React.FC<TooltipProps<number, string>> = ({
+const CustomTooltip: FC<TooltipProps<number, string>> = ({
   active,
   payload,
   label,

@@ -2,11 +2,16 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabaseClient";
 import type { User, Session } from "@supabase/supabase-js";
 
+const MIN_PASSWORD_LEN = 6;
+
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authBusy, setAuthBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Non-error feedback (e.g. “confirm your email”) */
+  const [notice, setNotice] = useState<string | null>(null);
 
   // 🔹 Ref to prevent multiple rapid requests
   const isSubmittingRef = useRef(false);
@@ -54,65 +59,93 @@ export function useAuth() {
 
   // 🔐 SIGN UP (Register)
   const signUp = async (email: string, password: string) => {
-    if (isSubmittingRef.current) return; // prevent rapid clicks
+    if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setError(null);
+    setNotice(null);
+    setAuthBusy(true);
 
     try {
       if (!email || !password) throw new Error("Email and password are required");
+      if (password.length < MIN_PASSWORD_LEN) {
+        throw new Error(`Password must be at least ${MIN_PASSWORD_LEN} characters.`);
+      }
+
+      const redirectTo =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/auth`
+          : undefined;
 
       const { data, error } = await supabase.auth.signUp({
-        email,
+        email: email.trim(),
         password,
+        options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
       });
 
       if (error) {
-        if ((error as any).status === 429) {
+        if ((error as { status?: number }).status === 429) {
           throw new Error("Too many signup attempts. Please try again later.");
-        } else {
-          throw error;
         }
+        throw error;
       }
 
-      setUser(data.user);
-      setSession(data.session);
-    } catch (err: any) {
-      setError(err.message || "Signup failed");
+      // Only treat as signed-in when Supabase issued a session (e.g. email confirm off).
+      // If "Confirm email" is on, session is null — do not set user or dashboard breaks.
+      if (data.session) {
+        setSession(data.session);
+        setUser(data.session.user);
+        setNotice(null);
+      } else if (data.user) {
+        setSession(null);
+        setUser(null);
+        setNotice(
+          "Account created. Check your email for a confirmation link, then sign in here."
+        );
+      } else {
+        throw new Error("Sign up did not complete. Please try again.");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Signup failed";
+      setError(message);
     } finally {
       isSubmittingRef.current = false;
+      setAuthBusy(false);
     }
   };
 
   // 🔐 SIGN IN (Login)
   const signIn = async (email: string, password: string) => {
-    if (isSubmittingRef.current) return; // prevent rapid clicks
+    if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setError(null);
+    setNotice(null);
+    setAuthBusy(true);
 
     try {
       if (!email || !password) throw new Error("Email and password are required");
 
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password,
       });
 
       if (error) {
-        if ((error as any).status === 429) {
+        if ((error as { status?: number }).status === 429) {
           throw new Error("Too many login attempts. Please wait a moment.");
-        } else if ((error as any).status === 400) {
-          throw new Error("Invalid email or password. Please check your credentials.");
-        } else {
-          throw error;
         }
+        if ((error as { status?: number }).status === 400) {
+          throw new Error("Invalid email or password. Please check your credentials.");
+        }
+        throw error;
       }
 
-      setUser(data.user);
       setSession(data.session);
-    } catch (err: any) {
-      setError(err.message || "Login failed");
+      setUser(data.user);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       isSubmittingRef.current = false;
+      setAuthBusy(false);
     }
   };
 
@@ -121,6 +154,8 @@ export function useAuth() {
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
     setError(null);
+    setNotice(null);
+    setAuthBusy(true);
 
     try {
       const { error } = await supabase.auth.signOut();
@@ -128,10 +163,11 @@ export function useAuth() {
 
       setUser(null);
       setSession(null);
-    } catch (err: any) {
-      setError(err.message || "Logout failed");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Logout failed");
     } finally {
       isSubmittingRef.current = false;
+      setAuthBusy(false);
     }
   };
 
@@ -139,7 +175,9 @@ export function useAuth() {
     user,
     session,
     loading,
+    authBusy,
     error,
+    notice,
     signUp,
     signIn,
     signOut,
