@@ -6,6 +6,7 @@ import { HomePage } from './pages/HomePage'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectListPage } from './pages/ProjectListPage'
+import { ProjectDetailPage } from './pages/ProjectDetailPage'
 
 /**
  * 🔐 ProtectedRoute Component
@@ -78,6 +79,21 @@ function AnimatedRoutes() {
                 exit={{ opacity: 0 }}
               >
                 <ProjectListPage />
+              </motion.div>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/projects/:repoId"
+          element={
+            <ProtectedRoute>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <ProjectDetailPage />
               </motion.div>
             </ProtectedRoute>
           }
