@@ -1,13 +1,38 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { type Repository } from "../lib/supabaseClient";
+import { syncRepositoryViaApi } from "../lib/api";
 
 interface ProjectTableProps {
   repositories: Repository[];
+  onRepositoryUpdated?: (repo: Repository) => void;
 }
 
-export function ProjectTable({ repositories }: ProjectTableProps) {
+export function ProjectTable({ repositories, onRepositoryUpdated }: ProjectTableProps) {
+  const navigate = useNavigate();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const handleView = (repo: Repository, e: MouseEvent) => {
+    e.preventDefault();
+    navigate(`/projects/${repo.id}`);
+  };
+
+  const handleSync = async (repo: Repository, e: MouseEvent) => {
+    e.preventDefault();
+    setSyncError(null);
+    setSyncingId(repo.id);
+    try {
+      const updated = await syncRepositoryViaApi(repo.id);
+      onRepositoryUpdated?.(updated);
+    } catch (err) {
+      setSyncError(err instanceof Error ? err.message : "Sync failed");
+    } finally {
+      setSyncingId(null);
+    }
+  };
 
   return (
     <motion.div
@@ -16,6 +41,11 @@ export function ProjectTable({ repositories }: ProjectTableProps) {
       transition={{ delay: 0.2 }}
       className="rounded-xl overflow-hidden border border-slate-800 bg-slate-900/60 backdrop-blur-md"
     >
+      {syncError && (
+        <div className="border-b border-red-500/25 bg-red-500/10 px-4 py-2 text-sm text-red-200">
+          {syncError}
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full">
           {/* Header */}
@@ -78,21 +108,20 @@ export function ProjectTable({ repositories }: ProjectTableProps) {
                   {/* Actions */}
                   <td className="px-6 py-4 text-sm flex gap-3">
                     <button
-                      onClick={() =>
-                        console.log("View details:", repo.id)
-                      }
+                      type="button"
+                      onClick={(e) => handleView(repo, e)}
                       className="text-cyan-400 hover:text-white transition font-semibold"
                     >
                       View
                     </button>
 
                     <button
-                      onClick={() =>
-                        console.log("Sync repo:", repo.id)
-                      }
-                      className="text-purple-400 hover:text-white transition font-semibold"
+                      type="button"
+                      onClick={(e) => void handleSync(repo, e)}
+                      disabled={syncingId === repo.id}
+                      className="text-purple-400 hover:text-white transition font-semibold disabled:opacity-40"
                     >
-                      Sync
+                      {syncingId === repo.id ? "Syncing…" : "Sync"}
                     </button>
                   </td>
                 </motion.tr>

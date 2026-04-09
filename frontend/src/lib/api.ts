@@ -68,3 +68,74 @@ export async function createRepositoryViaApi(
 
   return data
 }
+
+export type RepoReview = {
+  id: string
+  repo_id: string
+  pr_number: number
+  complexity_score: number
+  status: string
+  summary: string
+  severity: string
+  report: string
+  created_at: string | null
+}
+
+export async function fetchRepositoryById(repoId: string): Promise<Repository> {
+  const res = await fetch(`${getApiBaseUrl()}/api/repositories/${encodeURIComponent(repoId)}`, {
+    headers: { Accept: 'application/json' },
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'error' in payload
+        ? String((payload as { error: string }).error)
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  const data = (payload as { data?: Repository }).data
+  if (!data?.id) throw new Error('Invalid repository response')
+  return data
+}
+
+export async function fetchRepositoryReviews(repoId: string): Promise<RepoReview[]> {
+  const res = await fetch(
+    `${getApiBaseUrl()}/api/repositories/${encodeURIComponent(repoId)}/reviews`,
+    { headers: { Accept: 'application/json' } }
+  )
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'error' in payload
+        ? String((payload as { error: string }).error)
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  const data = (payload as { data?: RepoReview[] }).data
+  if (!Array.isArray(data)) throw new Error('Invalid reviews response')
+  return data
+}
+
+/**
+ * Refreshes `last_synced_at` for a tracked repository.
+ */
+export async function syncRepositoryViaApi(repoId: string): Promise<Repository> {
+  const res = await fetch(
+    `${getApiBaseUrl()}/api/repositories/${encodeURIComponent(repoId)}/sync`,
+    {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+    }
+  )
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'error' in payload
+        ? String((payload as { error: string }).error)
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  const data = (payload as { data?: Repository }).data
+  if (!data?.id) throw new Error('Invalid sync response')
+  return data
+}

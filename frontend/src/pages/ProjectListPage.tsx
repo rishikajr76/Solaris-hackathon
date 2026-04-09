@@ -183,7 +183,14 @@ export function ProjectListPage() {
 
           {/* Table */}
           {!loading && repositories.length > 0 && (
-            <ProjectTable repositories={repositories} />
+            <ProjectTable
+              repositories={repositories}
+              onRepositoryUpdated={(updated) =>
+                setRepositories((prev) =>
+                  prev.map((r) => (r.id === updated.id ? updated : r))
+                )
+              }
+            />
           )}
 
           {/* Empty State */}
