@@ -11,8 +11,23 @@ export function getApiBaseUrl(): string {
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 
+export type CopilotStreamSource = {
+  id: string
+  title: string
+  url: string
+  category: string
+}
+
+export type CopilotStreamMeta = {
+  signalCount: number
+  sourceCount: number
+  sources: CopilotStreamSource[]
+  thinkingTrace: string[]
+  routePath: string | null
+}
+
 /**
- * Sentinel Copilot — Gemini via backend `POST /api/chat`.
+ * Sentinel Copilot — non-streaming fallback: `POST /api/chat`.
  */
 export async function sendCopilotMessage(
   messages: ChatMessage[],
@@ -43,6 +58,114 @@ export async function sendCopilotMessage(
   }
 
   return content
+}
+
+export type CopilotStreamHandlers = {
+  onMeta: (meta: CopilotStreamMeta) => void
+  onDelta: (text: string) => void
+  onDone: () => void
+  onError: (err: Error) => void
+}
+
+/**
+ * Sentinel Copilot — SSE stream: citations + thinking trace, then token chunks (`POST /api/chat/stream`).
+ */
+export async function streamCopilotMessage(
+  messages: ChatMessage[],
+  pageContext: string | undefined,
+  handlers: CopilotStreamHandlers
+): Promise<void> {
+  let aborted = false
+
+  const res = await fetch(`${getApiBaseUrl()}/api/chat/stream`, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messages, pageContext }),
+  })
+
+  if (!res.ok) {
+    const raw = await res.text()
+    let msg = `HTTP ${res.status}`
+    try {
+      const j = JSON.parse(raw) as { error?: string }
+      if (typeof j.error === 'string') msg = j.error
+    } catch {
+      if (raw.trim()) msg = raw.slice(0, 300)
+    }
+    aborted = true
+    handlers.onError(new Error(msg))
+    return
+  }
+
+  const reader = res.body?.getReader()
+  if (!reader) {
+    aborted = true
+    handlers.onError(new Error('No response body'))
+    return
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let sawDone = false
+  let sawError = false
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      for (;;) {
+        const sep = buffer.indexOf('\n\n')
+        if (sep === -1) break
+        const block = buffer.slice(0, sep)
+        buffer = buffer.slice(sep + 2)
+
+        for (const line of block.split('\n')) {
+          if (!line.startsWith('data:')) continue
+          const rawLine = line.slice(5).trimStart()
+          if (!rawLine) continue
+          let ev: Record<string, unknown>
+          try {
+            ev = JSON.parse(rawLine) as Record<string, unknown>
+          } catch {
+            continue
+          }
+          const t = ev.type
+          if (t === 'meta') {
+            const meta: CopilotStreamMeta = {
+              signalCount: Number(ev.signalCount) || 0,
+              sourceCount: Number(ev.sourceCount) || 0,
+              sources: Array.isArray(ev.sources) ? (ev.sources as CopilotStreamSource[]) : [],
+              thinkingTrace: Array.isArray(ev.thinkingTrace)
+                ? (ev.thinkingTrace as string[])
+                : [],
+              routePath: typeof ev.routePath === 'string' ? ev.routePath : null,
+            }
+            handlers.onMeta(meta)
+          } else if (t === 'delta' && typeof ev.text === 'string') {
+            handlers.onDelta(ev.text)
+          } else if (t === 'done') {
+            sawDone = true
+            handlers.onDone()
+          } else if (t === 'error') {
+            sawError = true
+            handlers.onError(new Error(typeof ev.message === 'string' ? ev.message : 'Stream error'))
+            return
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  if (!aborted && !sawDone && !sawError) {
+    handlers.onDone()
+  }
 }
 
 /**
@@ -155,6 +278,44 @@ export async function fetchRepositoryReviews(repoId: string): Promise<RepoReview
 /**
  * Refreshes `last_synced_at` for a tracked repository.
  */
+export type RepoQualitySnapshot = {
+  score: number
+  strengths: string[]
+  risks: string[]
+  recommendations: string[]
+  narrative: string
+}
+
+export type RepositoryInsight = {
+  defaultBranch: string
+  truncated: boolean
+  totalBlobFiles: number
+  files: { path: string; size?: number }[]
+  readmePreview: string | null
+  quality: RepoQualitySnapshot | null
+  githubError?: string
+}
+
+export async function fetchRepositoryInsight(repoId: string): Promise<RepositoryInsight> {
+  const res = await fetch(
+    `${getApiBaseUrl()}/api/repositories/${encodeURIComponent(repoId)}/insight`,
+    { headers: { Accept: 'application/json' } }
+  )
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'error' in payload
+        ? String((payload as { error: string }).error)
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  const data = (payload as { data?: RepositoryInsight }).data
+  if (!data || typeof data.defaultBranch !== 'string') {
+    throw new Error('Invalid insight response')
+  }
+  return data
+}
+
 export async function syncRepositoryViaApi(repoId: string): Promise<Repository> {
   const res = await fetch(
     `${getApiBaseUrl()}/api/repositories/${encodeURIComponent(repoId)}/sync`,

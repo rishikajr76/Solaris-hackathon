@@ -33,6 +33,22 @@ export class GitHubService {
    * Fetches PR metadata. 
    * Useful for the "Perceive" phase to understand the PR's intent from the title/description.
    */
+  /** Latest commit SHA on the PR head branch (required for inline review comments). */
+  static async getPullRequestHeadSha(owner: string, repo: string, pullNumber: number): Promise<string | null> {
+    try {
+      const { data } = await octokit.pulls.get({
+        owner,
+        repo,
+        pull_number: pullNumber,
+      });
+      return data.head.sha;
+    } catch (error: unknown) {
+      const msg = error && typeof error === 'object' && 'message' in error ? String((error as Error).message) : error;
+      console.error('❌ GitHub SDK Error (head sha):', msg);
+      return null;
+    }
+  }
+
   static async getPullRequestInfo(owner: string, repo: string, pullNumber: number) {
     try {
       const { data } = await octokit.pulls.get({

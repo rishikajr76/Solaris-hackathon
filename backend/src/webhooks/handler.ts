@@ -35,7 +35,11 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     (async () => {
       try {
         const diff = await GitHubService.getPullRequestDiff(owner, repo, pullNumber);
-        await ReviewOrchestrator.processDiff(diff, owner, repo, pullNumber);
+        let headSha = event.pull_request?.head?.sha?.trim() ?? '';
+        if (!headSha) {
+          headSha = (await GitHubService.getPullRequestHeadSha(owner, repo, pullNumber)) ?? '';
+        }
+        await ReviewOrchestrator.processDiff(diff, owner, repo, pullNumber, headSha);
         console.log(`✅ Sentinel-AG: Successfully completed review for PR #${pullNumber}`);
       } catch (innerError) {
         console.error(`❌ Sentinel-AG: Background process failed for PR #${pullNumber}:`, innerError);

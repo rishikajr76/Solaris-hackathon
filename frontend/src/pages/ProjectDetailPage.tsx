@@ -3,11 +3,14 @@ import { useEffect, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, RefreshCw } from 'lucide-react'
 import { Sidebar } from '../components/Sidebar'
+import { RepositoryInsightPanel } from '../components/RepositoryInsightPanel'
 import {
   fetchRepositoryById,
   fetchRepositoryReviews,
+  fetchRepositoryInsight,
   syncRepositoryViaApi,
   type RepoReview,
+  type RepositoryInsight,
 } from '../lib/api'
 import type { Repository } from '../lib/supabaseClient'
 
@@ -26,6 +29,9 @@ export function ProjectDetailPage() {
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [insight, setInsight] = useState<RepositoryInsight | null>(null)
+  const [insightLoading, setInsightLoading] = useState(true)
+  const [insightError, setInsightError] = useState<string | null>(null)
 
   const load = async () => {
     if (!repoId) return
@@ -51,6 +57,24 @@ export function ProjectDetailPage() {
     void load()
   }, [repoId])
 
+  const loadInsight = async () => {
+    if (!repoId) return
+    setInsightLoading(true)
+    setInsightError(null)
+    try {
+      const data = await fetchRepositoryInsight(repoId)
+      setInsight(data)
+    } catch (e) {
+      setInsightError(e instanceof Error ? e.message : 'Failed to load insight')
+    } finally {
+      setInsightLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadInsight()
+  }, [repoId])
+
   const githubUrl = repo
     ? `https://github.com/${repo.owner}/${repo.repo_name}`
     : '#'
@@ -62,6 +86,7 @@ export function ProjectDetailPage() {
     try {
       const updated = await syncRepositoryViaApi(repoId)
       setRepo(updated)
+      void loadInsight()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sync failed')
     } finally {
@@ -105,7 +130,7 @@ export function ProjectDetailPage() {
           )}
 
           {loading && (
-            <div className="glass-neon rounded-xl p-12 text-center text-slate-400">
+            <div className="glass-neon rounded-xl p-12 text-center readable-prose-muted">
               Loading project…
             </div>
           )}
@@ -146,20 +171,28 @@ export function ProjectDetailPage() {
                 </div>
               </div>
 
+              <RepositoryInsightPanel
+                insight={insight}
+                loading={insightLoading}
+                error={insightError}
+                onRefresh={() => void loadInsight()}
+              />
+
               <h2 className="text-xl font-semibold text-white mb-4">
-                Sentinel reviews ({reviews.length})
+                Sentinel PR reviews ({reviews.length})
               </h2>
 
               {reviews.length === 0 ? (
-                <div className="glass-neon rounded-xl p-10 text-center text-slate-400 space-y-3">
-                  <p>
-                    No PR reviews for this repository yet. Trigger a PR review via the
-                    webhook, or check Supabase for existing rows.
+                <div className="glass-neon rounded-xl p-10 text-center space-y-4 max-w-2xl mx-auto">
+                  <p className="readable-prose-muted">
+                    No PR reviews for this repository yet. Trigger a review from your GitHub integration, or
+                    check Supabase for existing rows.
                   </p>
-                  <p className="text-xs text-amber-200/90 max-w-lg mx-auto">
-                    If reviews already exist in the <code className="text-cyan-300">reviews</code> table
-                    but never show here, your table needs a <code className="text-cyan-300">repo_id</code>{" "}
-                    column — run <code className="text-cyan-300">backend/sql/add_reviews_repo_id.sql</code>{" "}
+                  <p className="readable-prose-muted text-sm text-amber-200/85">
+                    If reviews exist in the <code className="readable-inline-code text-amber-100/90">reviews</code>{" "}
+                    table but never show here, add a{" "}
+                    <code className="readable-inline-code text-amber-100/90">repo_id</code> column — run{" "}
+                    <code className="readable-inline-code text-amber-100/90">backend/sql/add_reviews_repo_id.sql</code>{" "}
                     in the Supabase SQL editor once.
                   </p>
                 </div>
@@ -182,7 +215,7 @@ export function ProjectDetailPage() {
                           {rev.severity}
                         </span>
                       </div>
-                      <p className="text-slate-300 text-sm mb-2">{rev.summary}</p>
+                      <p className="readable-prose text-slate-200 mb-3">{rev.summary}</p>
                       <div className="flex flex-wrap gap-4 text-xs text-slate-500">
                         <span>Complexity: {rev.complexity_score}</span>
                         <span>Status: {rev.status}</span>
@@ -195,7 +228,7 @@ export function ProjectDetailPage() {
                           <summary className="cursor-pointer text-cyan-400 text-sm font-medium">
                             Full report
                           </summary>
-                          <pre className="mt-3 max-h-80 overflow-auto rounded-lg bg-slate-950/80 p-4 text-xs text-slate-300 whitespace-pre-wrap border border-slate-800">
+                          <pre className="readable-pre mt-3 max-h-[28rem] whitespace-pre-wrap">
                             {rev.report}
                           </pre>
                         </details>

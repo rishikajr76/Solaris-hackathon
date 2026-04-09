@@ -42,7 +42,7 @@ export function HomePage() {
             />
           </h1>
 
-          <p className="text-xl text-slate-400 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl readable-prose-muted mb-8 max-w-2xl mx-auto leading-relaxed">
             AI-powered code governance with automated review insights,
             security checks, and cognitive complexity analysis.
           </p>

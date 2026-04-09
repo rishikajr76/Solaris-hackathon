@@ -51,16 +51,16 @@ export function ProjectTable({ repositories, onRepositoryUpdated }: ProjectTable
           {/* Header */}
           <thead>
             <tr className="border-b border-slate-800 bg-slate-900/80">
-              <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold tracking-wide text-slate-300">
                 Repository
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold tracking-wide text-slate-300">
                 Owner
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold tracking-wide text-slate-300">
                 Last Synced
               </th>
-              <th className="px-6 py-4 text-left text-sm font-semibold text-slate-300">
+              <th className="px-6 py-4 text-left text-sm font-semibold tracking-wide text-slate-300">
                 Action
               </th>
             </tr>
@@ -71,7 +71,7 @@ export function ProjectTable({ repositories, onRepositoryUpdated }: ProjectTable
               <tr>
                 <td
                   colSpan={4}
-                  className="px-6 py-10 text-center text-slate-400"
+                  className="px-6 py-10 text-center readable-prose-muted"
                 >
                   🚀 No repositories found. Add your first repo!
                 </td>
@@ -89,24 +89,24 @@ export function ProjectTable({ repositories, onRepositoryUpdated }: ProjectTable
                   }`}
                 >
                   {/* Repo Name */}
-                  <td className="px-6 py-4 text-sm font-medium text-cyan-400">
+                  <td className="px-6 py-4 text-[15px] font-medium text-cyan-400">
                     {repo.repo_name}
                   </td>
 
                   {/* Owner */}
-                  <td className="px-6 py-4 text-sm text-slate-300">
+                  <td className="px-6 py-4 text-[15px] text-slate-300">
                     {repo.owner}
                   </td>
 
                   {/* Last Synced */}
-                  <td className="px-6 py-4 text-sm text-slate-400">
+                  <td className="px-6 py-4 text-[15px] tabular-nums text-slate-400">
                     {repo.last_synced_at
                       ? new Date(repo.last_synced_at).toLocaleDateString()
                       : "—"}
                   </td>
 
                   {/* Actions */}
-                  <td className="px-6 py-4 text-sm flex gap-3">
+                  <td className="px-6 py-4 text-[15px] flex gap-3">
                     <button
                       type="button"
                       onClick={(e) => handleView(repo, e)}

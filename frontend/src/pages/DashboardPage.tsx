@@ -28,8 +28,8 @@ export function DashboardPage() {
             <h1 className="text-3xl md:text-4xl font-bold text-gradient mb-2">
               Dashboard
             </h1>
-            <p className="text-slate-400">
-              Welcome to your code governance hub 🚀
+            <p className="readable-prose-muted max-w-xl">
+              Welcome to your code governance hub — scan metrics and trends at a comfortable reading size.
             </p>
           </motion.div>
 

@@ -107,8 +107,8 @@ export function ProjectListPage() {
           >
             <div>
               <h1 className="text-4xl font-bold text-gradient mb-2">Projects</h1>
-              <p className="text-slate-400">
-                Manage your repositories and enable code reviews
+              <p className="readable-prose-muted text-base max-w-xl">
+                Manage your repositories and track AI code reviews with clearer status at a glance.
               </p>
             </div>
 

@@ -5,7 +5,11 @@ export interface AgentReviewResult {
   reviewReport: string;
   summary: string;
   severity: 'Low' | 'Medium' | 'High';
-  cognitiveLoad: number; 
+  cognitiveLoad: number;
+  /** Raw agent outputs (posted separately on GitHub). */
+  securityReport: string;
+  performanceReport: string;
+  architectureReport: string;
 }
 
 export class AgentBoard {
@@ -38,7 +42,10 @@ ${archRes}
       reviewReport: fullReport,
       summary: summaryData.text,
       severity: summaryData.severity as 'Low' | 'Medium' | 'High',
-      cognitiveLoad: complexity // Use the number here too
+      cognitiveLoad: complexity,
+      securityReport: securityRes,
+      performanceReport: perfRes,
+      architectureReport: archRes,
     };
   }
 }

@@ -189,10 +189,10 @@ export function LiveEngineFeed() {
             </h2>
           </div>
         </div>
-        <p className="text-center text-sm text-slate-400 max-w-2xl px-4">
+        <p className="text-center readable-prose-muted max-w-2xl px-4 mx-auto">
           Multi-agent PR reviews as they land in your org — same pipeline that powers
           GitHub comments and your dashboard. Sub-second realtime via Supabase. Ask{" "}
-          <span className="text-cyan-400/90">Sentinel Copilot</span> (floating button) for setup help.
+          <span className="text-cyan-400/90">Sentinel Copilot</span> (floating button) if you need a hand.
         </p>
       </div>
 
@@ -200,12 +200,11 @@ export function LiveEngineFeed() {
         <div className="max-w-3xl mx-auto rounded-2xl border border-amber-500/30 bg-amber-950/20 p-8 text-center">
           <Sparkles className="h-10 w-10 text-amber-400 mx-auto mb-4" />
           <p className="text-amber-100 font-medium mb-2">Demo needs Supabase env</p>
-          <p className="text-sm text-slate-400">
-            Add <code className="text-cyan-300">VITE_SUPABASE_URL</code> and{" "}
-            <code className="text-cyan-300">VITE_SUPABASE_ANON_KEY</code> to{" "}
-            <code className="text-cyan-300">frontend/.env</code>, enable Realtime on table{" "}
-            <code className="text-slate-500">reviews</code>, then refresh — webhook events will
-            stream in here.
+          <p className="readable-prose-muted text-sm">
+            Add <code className="readable-inline-code text-cyan-200">VITE_SUPABASE_URL</code> and{" "}
+            <code className="readable-inline-code text-cyan-200">VITE_SUPABASE_ANON_KEY</code> to{" "}
+            <code className="readable-inline-code text-cyan-200">frontend/.env</code>, enable Realtime on table{" "}
+            <code className="readable-inline-code">reviews</code>, then refresh — new rows stream in here.
           </p>
         </div>
       ) : loading ? (
@@ -262,10 +261,9 @@ export function LiveEngineFeed() {
             <div className="max-w-xl mx-auto text-center py-16 px-6 rounded-2xl border border-dashed border-slate-700 bg-slate-950/30">
               <GitBranch className="h-12 w-12 text-slate-600 mx-auto mb-4" />
               <p className="text-slate-300 font-medium mb-2">Waiting for the first review</p>
-              <p className="text-sm text-slate-500">
-                Point a GitHub webhook at your Sentinel{" "}
-                <code className="text-cyan-500/90">/api/webhook</code> and open or update a
-                PR — new rows appear here instantly when Realtime is enabled.
+              <p className="readable-prose-muted text-sm">
+                When PR reviews are recorded in Supabase, they show up here in realtime. Wire your CI or
+                integration so review rows land in <code className="readable-inline-code">reviews</code>.
               </p>
             </div>
           ) : (
@@ -342,7 +340,7 @@ export function LiveEngineFeed() {
                       <h3 className="text-base font-semibold text-white mb-2 line-clamp-1">
                         {review.title?.trim() || "Multi-agent review"}
                       </h3>
-                      <p className="text-sm text-slate-400 mb-4 line-clamp-3 leading-relaxed">
+                      <p className="readable-prose text-slate-300 mb-4 line-clamp-3 text-[15px]">
                         {review.summary?.trim() || "—"}
                       </p>
 

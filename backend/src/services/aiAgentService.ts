@@ -1,27 +1,18 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import type { GenerativeModel } from '@google/generative-ai';
-import { config } from '../config/env';
+import { reviewLlmComplete, reviewLlmSummarize } from './llmReviewClient';
 
-let genAI: GoogleGenerativeAI | null = null;
+const CATEGORY_LABEL: Record<string, string> = {
+  security: '🔒 Security',
+  performance: '⚡ Performance',
+  architecture: '🏗️ Architecture',
+  suggestion: '💡 Suggestion',
+};
 
-function getGenAI(): GoogleGenerativeAI {
-  const key = config.googleApiKey?.trim();
-  if (!key) {
-    throw new Error(
-      'GOOGLE_API_KEY is not set in backend/.env. Required for AI review (webhook pipeline).'
-    );
-  }
-  if (!genAI) genAI = new GoogleGenerativeAI(key);
-  return genAI;
-}
-
-function getProModel(): GenerativeModel {
-  return getGenAI().getGenerativeModel({ model: 'gemini-1.5-pro' });
-}
-
-function getFlashModel(): GenerativeModel {
-  return getGenAI().getGenerativeModel({ model: 'gemini-1.5-flash' });
-}
+export type ExtractedInlineComment = {
+  path: string;
+  line: number;
+  category: string;
+  body: string;
+};
 
 const prompts: Record<string, string> = {
   security: `You are a Security Auditor. Focus: SQLi, Secrets, XSS, and Auth. Context: {context}. Diff: {diff}`,
@@ -39,8 +30,7 @@ export class AIAgentService {
       .replace('{context}', context)
       .replace('{diff}', diff);
 
-    const result = await getProModel().generateContent(fullPrompt);
-    return result.response.text();
+    return reviewLlmComplete(fullPrompt, true);
   }
 
   /**
@@ -60,11 +50,93 @@ export class AIAgentService {
       ${fullReport}
     `;
 
-    const result = await getFlashModel().generateContent(summaryPrompt);
-    const text = result.response.text();
-    
-    // Clean JSON from Markdown blocks if present
+    const text = await reviewLlmSummarize(summaryPrompt);
+
     const cleanJson = text.replace(/```json|```/g, '').trim();
     return JSON.parse(cleanJson);
+  }
+
+  /**
+   * Compact markdown for a standalone GitHub comment (suggestions only).
+   */
+  static async buildSuggestionsComment(fullReport: string): Promise<string> {
+    const clipped = fullReport.length > 12000 ? fullReport.slice(0, 12000) + '\n\n…(truncated)' : fullReport;
+    const prompt = `From this multi-agent PR review, output **ONLY** valid Markdown for GitHub (no JSON fence).
+
+Use exactly these sections:
+
+### Priority suggestions
+- Up to 6 bullets: imperative, concrete, actionable for the author.
+
+### Follow-ups
+- Up to 4 bullets: tests, docs, or refactors to consider later.
+
+Keep bullets short. Do not repeat the entire review.
+
+Review:
+${clipped}`;
+
+    return reviewLlmComplete(prompt, false);
+  }
+
+  /**
+   * Maps narrative review text to concrete paths/lines from the LINE CATALOG for GitHub inline comments.
+   */
+  static async extractInlineReviewComments(
+    diffExcerpt: string,
+    lineCatalogText: string,
+    agentNarrative: string
+  ): Promise<ExtractedInlineComment[]> {
+    const clippedDiff =
+      diffExcerpt.length > 14000 ? diffExcerpt.slice(0, 14000) + '\n\n…(diff truncated)' : diffExcerpt;
+    const clippedNarrative =
+      agentNarrative.length > 16000 ? agentNarrative.slice(0, 16000) + '\n\n…(truncated)' : agentNarrative;
+
+    const prompt = `You place pull-request review findings as GitHub **inline** comments (path + line on the NEW/right side).
+
+LINE CATALOG — you may ONLY use these paths, and each line MUST be one of the integers listed for that path:
+${lineCatalogText}
+
+UNIFIED DIFF (excerpt):
+${clippedDiff}
+
+FINDINGS (turn into concise inline comments; no more than 120 words per comment body; GitHub-flavored markdown OK):
+${clippedNarrative}
+
+Return ONLY a JSON object: {"comments":[{"path":"exact/path/from/catalog","line":42,"category":"security|performance|architecture|suggestion","body":"..."}]}
+
+Rules:
+- At most 18 comments. Priority: security > performance > architecture > suggestion.
+- Every path must match the LINE CATALOG exactly (character for character).
+- Every line must appear in the comma-separated list for that path in the LINE CATALOG.
+- Skip vague or duplicate points. No code fences inside body.
+- If nothing can be anchored safely, return {"comments":[]}.`;
+
+    const text = await reviewLlmSummarize(prompt);
+    const cleanJson = text.replace(/```json|```/g, '').trim();
+    let parsed: { comments?: unknown };
+    try {
+      parsed = JSON.parse(cleanJson) as { comments?: unknown };
+    } catch {
+      return [];
+    }
+    const raw = parsed.comments;
+    if (!Array.isArray(raw)) return [];
+
+    const out: ExtractedInlineComment[] = [];
+    for (const item of raw) {
+      if (!item || typeof item !== 'object') continue;
+      const rec = item as Record<string, unknown>;
+      const path = typeof rec.path === 'string' ? rec.path.trim() : '';
+      const line = typeof rec.line === 'number' ? rec.line : Number.NaN;
+      const catRaw = typeof rec.category === 'string' ? rec.category.toLowerCase().trim() : 'suggestion';
+      const bodyRaw = typeof rec.body === 'string' ? rec.body.trim() : '';
+      if (!path || !Number.isFinite(line) || !bodyRaw) continue;
+      const category = ['security', 'performance', 'architecture', 'suggestion'].includes(catRaw) ? catRaw : 'suggestion';
+      const label = CATEGORY_LABEL[category] ?? '💡 Note';
+      const body = `**${label}**\n\n${bodyRaw}`;
+      out.push({ path, line, category, body });
+    }
+    return out;
   }
 }

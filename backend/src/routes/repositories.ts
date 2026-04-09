@@ -19,6 +19,7 @@ import {
   touchRepositorySync,
   type RepositoryRow,
 } from '../services/reviewMetricsService';
+import { buildRepositoryInsight } from '../services/githubRepoInsight';
 
 export async function getRepositories(_req: Request, res: Response): Promise<void> {
   try {
@@ -62,6 +63,27 @@ export async function postRepository(req: Request, res: Response): Promise<void>
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     console.error('POST /api/repositories:', message);
+    res.status(500).json({ error: message });
+  }
+}
+
+export async function getRepositoryInsight(req: Request, res: Response): Promise<void> {
+  try {
+    const repoId = repoIdFromParams(req);
+    if (!repoId) {
+      res.status(400).json({ error: 'Missing repository id' });
+      return;
+    }
+    const repo = await getRepositoryById(repoId);
+    if (!repo) {
+      res.status(404).json({ error: 'Repository not found' });
+      return;
+    }
+    const data = await buildRepositoryInsight(repo.owner, repo.repo_name);
+    res.status(200).json({ data });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    console.error('GET /api/repositories/:repoId/insight:', message);
     res.status(500).json({ error: message });
   }
 }

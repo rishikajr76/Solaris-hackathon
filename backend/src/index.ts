@@ -12,9 +12,11 @@ import {
   getRepositoryByIdRoute,
   getRepositoryReviews,
   postRepositorySync,
+  getRepositoryInsight,
 } from './routes/repositories';
 import { ensureReviewsRepoIdColumn } from './db/ensureReviewsSchema';
-import { postChat } from './routes/chat';
+import { postChat, postChatStream } from './routes/chat';
+import { logReviewLlmStartup } from './services/llmReviewClient';
 
 // 1. CREATE the app first
 const app = express(); 
@@ -41,13 +43,15 @@ const repositoriesRouter = express.Router();
 repositoriesRouter.get('/', getRepositories);
 repositoriesRouter.post('/', postRepository);
 repositoriesRouter.get('/:repoId/reviews', getRepositoryReviews);
+repositoriesRouter.get('/:repoId/insight', getRepositoryInsight);
 repositoriesRouter.post('/:repoId/sync', postRepositorySync);
 repositoriesRouter.get('/:repoId', getRepositoryByIdRoute);
 app.use('/api/repositories', repositoriesRouter);
 
 /**
- * 🤖 Sentinel Copilot (Gemini)
+ * 🤖 Sentinel Copilot (Google Gemini, same API key as PR review when using gemini)
  */
+app.post('/api/chat/stream', postChatStream);
 app.post('/api/chat', postChat);
 
 /**
@@ -91,11 +95,14 @@ async function start(): Promise<void> {
     console.log(`🚀 Server: http://localhost:${port}`);
     console.log('📡 Webhook: POST /api/webhook');
     console.log('📂 Repositories: GET/POST /api/repositories, GET /:id/reviews, POST /:id/sync');
-    console.log('🤖 Copilot: POST /api/chat');
+    console.log('🤖 Copilot: POST /api/chat, POST /api/chat/stream (SSE)');
+
+    logReviewLlmStartup();
 
     const keys = {
       Supabase: !!process.env.SUPABASE_URL,
       GoogleAI: !!config.googleApiKey?.trim(),
+      OpenAI: !!config.openaiApiKey?.trim(),
       WebhookSecret: !!process.env.WEBHOOK_SECRET,
     };
 
