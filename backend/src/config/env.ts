@@ -28,19 +28,28 @@ export const config = {
 };
 
 /**
- * FAIL-FAST VALIDATION
- * Prevents the backend from running if critical keys are missing.
+ * Startup validation: only block on what the HTTP API needs (Supabase).
+ * GitHub + Gemini are required for webhooks / PR review — warn if missing.
  */
-const requiredKeys = [
-  { key: config.githubToken, name: 'GITHUB_TOKEN' },
-  { key: config.googleApiKey, name: 'GOOGLE_API_KEY' },
+const requiredForServer = [
   { key: config.supabase.url, name: 'SUPABASE_URL' },
-  { key: config.supabase.anonKey, name: 'SUPABASE_ANON_KEY' }
+  { key: config.supabase.anonKey, name: 'SUPABASE_ANON_KEY' },
 ];
 
-requiredKeys.forEach(({ key, name }) => {
+requiredForServer.forEach(({ key, name }) => {
   if (!key) {
-    console.error(`❌ CRITICAL ERROR: ${name} is missing in .env`);
-    process.exit(1); // Stop the server immediately
+    console.error(`❌ CRITICAL ERROR: ${name} is missing in backend/.env`);
+    process.exit(1);
   }
 });
+
+if (!config.githubToken?.trim()) {
+  console.warn(
+    '⚠️  GITHUB_TOKEN is not set — webhooks and GitHub API calls will fail until you add a token (Settings → Developer settings → PAT).'
+  );
+}
+if (!config.googleApiKey?.trim()) {
+  console.warn(
+    '⚠️  GOOGLE_API_KEY is not set — AI PR review will fail until you add a Google AI Studio key.'
+  );
+}

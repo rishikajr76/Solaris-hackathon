@@ -2,29 +2,9 @@ import { motion } from "framer-motion";
 import { Sidebar } from "../components/Sidebar";
 import { MetricCards } from "../components/MetricCards";
 import { ReviewChart } from "../components/ReviewChart";
-import { useAuth } from "../hooks/useAuth";
-import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
 
+/** Auth and loading are handled by `ProtectedRoute` in `App.tsx`. */
 export function DashboardPage() {
-  const { user, loading } = useAuth();
-  const navigate = useNavigate();
-
-  // 🔒 Protect Route
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
-
-  if (loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-slate-900 text-white">
-        Loading...
-      </div>
-    );
-  }
-
   return (
     <div className="flex min-h-screen bg-slate-900">
       <Sidebar />

@@ -3,6 +3,8 @@
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL: string
   readonly VITE_SUPABASE_ANON_KEY: string
+  /** Backend API base URL (no trailing slash), e.g. http://localhost:3000 */
+  readonly VITE_API_URL?: string
 }
 
 interface ImportMeta {
