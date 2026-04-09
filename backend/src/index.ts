@@ -16,6 +16,7 @@ import {
 } from './routes/repositories';
 import { ensureReviewsRepoIdColumn } from './db/ensureReviewsSchema';
 import { postChat, postChatStream } from './routes/chat';
+import { postHeal, postRemediationComment, postTribalMemoryIngest } from './routes/remediation';
 import { logReviewLlmStartup } from './services/llmReviewClient';
 
 // 1. CREATE the app first
@@ -53,6 +54,13 @@ app.use('/api/repositories', repositoriesRouter);
  */
 app.post('/api/chat/stream', postChatStream);
 app.post('/api/chat', postChat);
+
+/**
+ * Self-healing remediation (Tribal Memory RAG + GitHub inline comments)
+ */
+app.post('/api/remediation/heal', postHeal);
+app.post('/api/remediation/post-comment', postRemediationComment);
+app.post('/api/remediation/tribal-memory', postTribalMemoryIngest);
 
 /**
  * 🏥 Health Check
@@ -96,6 +104,7 @@ async function start(): Promise<void> {
     console.log('📡 Webhook: POST /api/webhook');
     console.log('📂 Repositories: GET/POST /api/repositories, GET /:id/reviews, POST /:id/sync');
     console.log('🤖 Copilot: POST /api/chat, POST /api/chat/stream (SSE)');
+    console.log('🔧 Remediation: POST /api/remediation/heal, POST /api/remediation/post-comment');
 
     logReviewLlmStartup();
 

@@ -15,6 +15,13 @@ export const config = {
   geminiReviewFlashModel: process.env.GEMINI_REVIEW_FLASH_MODEL?.trim() || 'gemini-2.5-flash',
   /** Separate Gemini model for repo insight quality (own free-tier quota vs PR review). Override if you hit 2.5-flash limits. */
   geminiRepoInsightModel: process.env.GEMINI_REPO_INSIGHT_MODEL?.trim() || 'gemini-2.0-flash',
+  /** Shadow Execution Agent — SQLi / auth-bypass scan (non-blocking). Override gemini-1.5-* if your project still exposes it. */
+  geminiShadowModel: process.env.GEMINI_SHADOW_MODEL?.trim() || 'gemini-2.5-flash',
+  /** When not `false`, PR webhooks spawn the shadow worker alongside the main review. */
+  shadowExecutionEnabled: process.env.SHADOW_EXECUTION_ENABLED !== 'false',
+  shadowMaxFiles: parseInt(process.env.SHADOW_MAX_FILES || '12', 10) || 12,
+  shadowMaxApproxTokens: parseInt(process.env.SHADOW_MAX_APPROX_TOKENS || '24000', 10) || 24000,
+  shadowSkipTestPaths: process.env.SHADOW_SKIP_TEST_PATHS === 'true',
   /** OpenAI for PR review (e.g. gpt-4o). Requires OPENAI_API_KEY. */
   openaiApiKey: process.env.OPENAI_API_KEY,
   openaiModel: process.env.OPENAI_MODEL?.trim() || 'gpt-4o',

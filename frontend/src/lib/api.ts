@@ -1,12 +1,17 @@
 import type { Repository } from './supabaseClient'
 
 /**
- * Base URL for the Sentinel-AG backend (Express). Override with VITE_API_URL in production.
+ * Base URL for the Sentinel-AG backend (Express).
+ * - If `VITE_API_URL` is set, it wins (required for most production deploys).
+ * - In dev, if unset, returns '' so `/api/*` hits the Vite dev server, which proxies to Express on port 3000.
+ * - Production build without `VITE_API_URL` falls back to `http://localhost:3000` (set the env for real hosting).
  */
 export function getApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_URL as string | undefined
-  const base = (raw?.trim() || 'http://localhost:3000').replace(/\/$/, '')
-  return base
+  const trimmed = raw?.trim()
+  if (trimmed) return trimmed.replace(/\/$/, '')
+  if (import.meta.env.DEV) return ''
+  return 'http://localhost:3000'
 }
 
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
@@ -335,4 +340,156 @@ export async function syncRepositoryViaApi(repoId: string): Promise<Repository> 
   const data = (payload as { data?: Repository }).data
   if (!data?.id) throw new Error('Invalid sync response')
   return data
+}
+
+// --- Backend health & remediation (Express routes not under Supabase) ---
+
+export type BackendHealth = {
+  status: string
+  timestamp: string
+}
+
+/** GET `/health` on the Express server (proxied in dev when `VITE_API_URL` is unset). */
+export async function fetchBackendHealth(): Promise<BackendHealth> {
+  const res = await fetch(`${getApiBaseUrl()}/health`, {
+    headers: { Accept: 'application/json' },
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'error' in payload
+        ? String((payload as { error: string }).error)
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  const status = (payload as { status?: string }).status
+  const timestamp = (payload as { timestamp?: string }).timestamp
+  if (typeof status !== 'string' || typeof timestamp !== 'string') {
+    throw new Error('Invalid health response')
+  }
+  return { status, timestamp }
+}
+
+export type RemediationViolationPayload = {
+  filePath: string
+  errorType: string
+  lineNumber?: number | null
+  message?: string
+}
+
+export type RemediationPrContext = {
+  violation: RemediationViolationPayload
+  owner: string
+  repo: string
+  pullNumber: number
+  headSha: string
+  repositoryId?: string | null
+}
+
+export type TribalMemoryHitRow = {
+  id: string
+  similarity: number
+  violation_type: string
+  file_path: string
+  line_number: number | null
+  problem_summary: string
+  fix_unified_diff: string
+  fix_explanation: string | null
+  source_pr_number: number | null
+  repository_id: string | null
+}
+
+export type RemediationHealResult = {
+  unifiedDiff: string
+  explanation: string
+  tribalHits: TribalMemoryHitRow[]
+  model: string
+}
+
+export async function postRemediationHeal(
+  body: RemediationPrContext
+): Promise<RemediationHealResult> {
+  const res = await fetch(`${getApiBaseUrl()}/api/remediation/heal`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'message' in payload
+        ? String((payload as { message: string }).message)
+        : typeof payload === 'object' && payload && 'error' in payload
+          ? String((payload as { error: string }).error)
+          : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  return payload as RemediationHealResult
+}
+
+export type RemediationCommentResult = RemediationHealResult & {
+  commentId: number
+  commentUrl: string
+}
+
+export async function postRemediationCommentApi(
+  body: RemediationPrContext
+): Promise<RemediationCommentResult> {
+  const res = await fetch(`${getApiBaseUrl()}/api/remediation/post-comment`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'message' in payload
+        ? String((payload as { message: string }).message)
+        : typeof payload === 'object' && payload && 'error' in payload
+          ? String((payload as { error: string }).error)
+          : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+  return payload as RemediationCommentResult
+}
+
+export type TribalMemoryIngestBody = {
+  repositoryId?: string
+  owner?: string
+  repo?: string
+  violationType: string
+  filePath: string
+  problemSummary: string
+  fixUnifiedDiff: string
+  lineNumber?: number | null
+  fixExplanation?: string | null
+  sourcePrNumber?: number | null
+  embedText?: string
+}
+
+export async function postTribalMemoryIngestApi(body: TribalMemoryIngestBody): Promise<void> {
+  const res = await fetch(`${getApiBaseUrl()}/api/remediation/tribal-memory`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  })
+  const payload = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'message' in payload
+        ? String((payload as { message: string }).message)
+        : typeof payload === 'object' && payload && 'error' in payload
+          ? String((payload as { error: string }).error)
+          : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
 }

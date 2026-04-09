@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import { PullRequestEvent } from '../types/github';
 import { GitHubService } from '../services/githubService';
 import { ReviewOrchestrator } from '../services/ReviewOrchestrator';
+import { config } from '../config/env';
+import { scheduleShadowRun } from '../shadow/scheduleShadowRun';
 
 export async function handleWebhook(req: Request, res: Response): Promise<void> {
   try {
@@ -30,6 +33,22 @@ export async function handleWebhook(req: Request, res: Response): Promise<void> 
     // We send 202 (Accepted) immediately so GitHub is happy.
     // The heavy AI work happens in the background.
     res.status(202).send('Sentinel-AG has started the review process.');
+
+    const headSha =
+      event.pull_request?.head?.sha?.trim() ||
+      '';
+    const githubDeliveryId = req.get('X-GitHub-Delivery') ?? null;
+
+    if (config.shadowExecutionEnabled) {
+      scheduleShadowRun({
+        owner,
+        repo,
+        prNumber: pullNumber,
+        headSha,
+        githubDeliveryId,
+        runId: randomUUID(),
+      });
+    }
 
     // Fire-and-forget background execution
     (async () => {
