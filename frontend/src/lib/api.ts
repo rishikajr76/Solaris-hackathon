@@ -9,6 +9,42 @@ export function getApiBaseUrl(): string {
   return base
 }
 
+export type ChatMessage = { role: 'user' | 'assistant'; content: string }
+
+/**
+ * Sentinel Copilot — Gemini via backend `POST /api/chat`.
+ */
+export async function sendCopilotMessage(
+  messages: ChatMessage[],
+  pageContext?: string
+): Promise<string> {
+  const res = await fetch(`${getApiBaseUrl()}/api/chat`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ messages, pageContext }),
+  })
+
+  const payload = await res.json().catch(() => ({}))
+
+  if (!res.ok) {
+    const msg =
+      typeof payload === 'object' && payload && 'error' in payload
+        ? String((payload as { error: string }).error)
+        : `HTTP ${res.status}`
+    throw new Error(msg)
+  }
+
+  const content = (payload as { content?: string }).content
+  if (typeof content !== 'string') {
+    throw new Error('Invalid chat response')
+  }
+
+  return content
+}
+
 /**
  * Fetches tracked repositories from the backend (`GET /api/repositories`).
  */

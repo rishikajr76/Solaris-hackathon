@@ -7,6 +7,7 @@ import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ProjectListPage } from './pages/ProjectListPage'
 import { ProjectDetailPage } from './pages/ProjectDetailPage'
+import { SentinelAssistant } from './components/SentinelAssistant'
 
 /**
  * 🔐 ProtectedRoute Component
@@ -106,15 +107,21 @@ function AnimatedRoutes() {
   )
 }
 
+function AppShell() {
+  return (
+    <>
+      <AnimatedRoutes />
+      <SentinelAssistant />
+    </>
+  )
+}
+
 function App() {
   return (
     <Router>
       <div className="bg-slate-900 text-slate-100 min-h-screen">
-        {/* Global UI Elements */}
         <CustomCursor />
-        
-        {/* Navigation Core */}
-        <AnimatedRoutes />
+        <AppShell />
       </div>
     </Router>
   )

@@ -72,6 +72,22 @@ type ReviewDbRow = {
   created_at: string | null;
 };
 
+/** PostgREST / Postgres column-missing messages vary; avoid throwing so the UI still loads. */
+function isMissingRepoIdColumnError(err: {
+  message?: string;
+  details?: string;
+  hint?: string;
+  code?: string;
+} | null): boolean {
+  if (!err) return false;
+  const t = `${err.message ?? ''} ${err.details ?? ''} ${err.hint ?? ''} ${err.code ?? ''}`.toLowerCase();
+  if (t.includes('42703')) return true;
+  if (t.includes('repo_id') && (t.includes('does not exist') || t.includes('undefined column'))) return true;
+  if (t.includes('could not find') && t.includes('repo_id')) return true;
+  if (t.includes('schema cache') && t.includes('repo_id')) return true;
+  return false;
+}
+
 function mapReviewRow(row: ReviewDbRow): ReviewSummaryRow {
   const pr =
     row.pr_id != null
@@ -107,22 +123,21 @@ export async function listReviewsByRepoId(repoId: string, limit = 100): Promise<
 
   let { data, error } = await fetchList();
 
-  if (error?.message.includes('repo_id')) {
+  if (isMissingRepoIdColumnError(error)) {
     await ensureReviewsRepoIdColumn();
     ({ data, error } = await fetchList());
   }
 
-  // DB migration via pg often fails (wrong DB password) while Supabase REST still works.
-  // Avoid breaking the whole UI: return no rows until repo_id exists (run sql/add_reviews_repo_id.sql).
-  if (error?.message.includes('repo_id')) {
+  // DB migration via pg often fails (wrong DB password). Supabase SQL editor always works.
+  if (isMissingRepoIdColumnError(error)) {
     console.warn(
-      '[Sentinel-AG] reviews.repo_id is missing. Open Supabase → SQL → run backend/sql/add_reviews_repo_id.sql (no app password required). Until then, project reviews list is empty.'
+      '[Sentinel-AG] Add reviews.repo_id: Supabase → SQL Editor → run backend/sql/add_reviews_repo_id.sql until then per-repo reviews return [].'
     );
     return [];
   }
 
   if (error) {
-    throw new Error(`List reviews failed: ${error.message}`);
+    throw new Error(`List reviews failed: ${error.message}${error.details ? ` (${error.details})` : ''}`);
   }
 
   return ((data as ReviewDbRow[]) ?? []).map(mapReviewRow);

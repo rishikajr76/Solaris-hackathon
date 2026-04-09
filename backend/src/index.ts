@@ -14,6 +14,7 @@ import {
   postRepositorySync,
 } from './routes/repositories';
 import { ensureReviewsRepoIdColumn } from './db/ensureReviewsSchema';
+import { postChat } from './routes/chat';
 
 // 1. CREATE the app first
 const app = express(); 
@@ -43,6 +44,11 @@ repositoriesRouter.get('/:repoId/reviews', getRepositoryReviews);
 repositoriesRouter.post('/:repoId/sync', postRepositorySync);
 repositoriesRouter.get('/:repoId', getRepositoryByIdRoute);
 app.use('/api/repositories', repositoriesRouter);
+
+/**
+ * 🤖 Sentinel Copilot (Gemini)
+ */
+app.post('/api/chat', postChat);
 
 /**
  * 🏥 Health Check
@@ -85,10 +91,11 @@ async function start(): Promise<void> {
     console.log(`🚀 Server: http://localhost:${port}`);
     console.log('📡 Webhook: POST /api/webhook');
     console.log('📂 Repositories: GET/POST /api/repositories, GET /:id/reviews, POST /:id/sync');
+    console.log('🤖 Copilot: POST /api/chat');
 
     const keys = {
       Supabase: !!process.env.SUPABASE_URL,
-      GoogleAI: !!process.env.GOOGLE_API_KEY || !!process.env.GEMINI_API_KEY,
+      GoogleAI: !!config.googleApiKey?.trim(),
       WebhookSecret: !!process.env.WEBHOOK_SECRET,
     };
 

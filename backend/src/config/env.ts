@@ -8,7 +8,7 @@ export const config = {
   port: process.env.PORT || 3000,
   githubToken: process.env.GITHUB_TOKEN,
   webhookSecret: process.env.WEBHOOK_SECRET,
-  googleApiKey: process.env.GOOGLE_API_KEY,
+  googleApiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
   
   // UPDATED: Optimized for Supabase integration
   supabase: {
@@ -50,6 +50,6 @@ if (!config.githubToken?.trim()) {
 }
 if (!config.googleApiKey?.trim()) {
   console.warn(
-    '⚠️  GOOGLE_API_KEY is not set — AI PR review will fail until you add a Google AI Studio key.'
+    '⚠️  GOOGLE_API_KEY / GEMINI_API_KEY is not set — AI PR review and Copilot chat will fail until you add a key.'
   );
 }
